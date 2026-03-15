@@ -12,7 +12,7 @@ from PyQt6.QtCore import (
     Qt, QTimer, QPropertyAnimation, QEasingCurve,
     QThread, pyqtSignal, QObject, QRect
 )
-from PyQt6.QtGui import QFont, QColor, QPainter, QPen
+from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QIcon
 
 from editor import InvoiceEditorWidget
 from pdf_gen import build_pdf
@@ -27,6 +27,11 @@ SUBTEXT = "#AAAAAA"
 BORDER = "#3A3A3A"
 
 DEFAULT_SAVE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "Invoices")
+
+
+def resource_path(relative):
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, relative)
 
 
 # ── PDF Worker Thread ─────────────────────────────────────────────────────────
@@ -496,6 +501,7 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 10))
+    app.setWindowIcon(QIcon(resource_path("icon.ico")))
 
     window = MainWindow()
     window.show()

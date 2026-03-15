@@ -340,6 +340,34 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
 
+        # ── Top bar ───────────────────────────────────────────────────────────
+        top_bar = QWidget()
+        top_bar.setFixedHeight(40)
+        top_bar.setStyleSheet(f"background: {BG}; border-bottom: 1px solid #2E2E2E;")
+        top_bar_layout = QHBoxLayout(top_bar)
+        top_bar_layout.setContentsMargins(16, 0, 16, 0)
+        top_bar_layout.addStretch()
+
+        self.save_dir_btn = QPushButton("Default Save Place")
+        self.save_dir_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_dir_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {SUBTEXT};
+                border: 1px solid #3A3A3A;
+                border-radius: 6px;
+                padding: 4px 12px;
+                font-size: 11px;
+            }}
+            QPushButton:hover {{
+                color: {TEXT};
+                border-color: {ACCENT};
+            }}
+        """)
+        self.save_dir_btn.clicked.connect(self._ask_save_dir)
+        top_bar_layout.addWidget(self.save_dir_btn)
+        root.addWidget(top_bar)
+
         self.editor = InvoiceEditorWidget()
         root.addWidget(self.editor)
 

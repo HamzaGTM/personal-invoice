@@ -376,6 +376,12 @@ class MainWindow(QMainWindow):
         self.editor = InvoiceEditorWidget()
         root.addWidget(self.editor)
 
+        footer = QLabel("made by Hamza Azam")
+        footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        footer.setFixedHeight(24)
+        footer.setStyleSheet("color: #444444; font-size: 11px; background: transparent;")
+        root.addWidget(footer)
+
         self.editor.generate_btn.clicked.connect(self._generate_pdf)
 
         # Overlay (hidden)

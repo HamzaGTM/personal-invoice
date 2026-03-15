@@ -4,7 +4,7 @@ import subprocess
 import urllib.request
 import json
 
-CURRENT_VERSION = "v1.6.0"
+CURRENT_VERSION = "v1.7.0"
 REPO = "HamzaGTM/personal-invoice"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 SETTINGS_DIR = os.path.expanduser("~/.invoicer")

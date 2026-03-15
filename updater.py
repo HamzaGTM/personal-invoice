@@ -4,7 +4,7 @@ import subprocess
 import urllib.request
 import json
 
-CURRENT_VERSION = "v1.7.0"
+CURRENT_VERSION = "v1.8.0"
 REPO = "HamzaGTM/personal-invoice"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 SETTINGS_DIR = os.path.expanduser("~/.invoicer")
@@ -171,17 +171,16 @@ def _show_download_dialog(parent_widget, exe_url, latest_version, release, curre
         QMessageBox.critical(parent_widget, "Update Failed", f"Could not download update:\n{msg}")
 
     def on_restart():
-        import tempfile
-        bat = os.path.join(tempfile.gettempdir(), "InvoiceR_update.bat")
-        with open(bat, "w") as f:
-            f.write(f"""@echo off
-ping -n 4 127.0.0.1 > nul
-move /Y "{new_exe}" "{current_exe}"
-powershell -command "Unblock-File '{current_exe}'" > nul 2>&1
-start "" "{current_exe}"
-del "%~f0"
-""")
-        subprocess.Popen(["cmd", "/c", bat], creationflags=subprocess.CREATE_NO_WINDOW)
+        ps_cmd = (
+            f"Start-Sleep -Seconds 4; "
+            f"Copy-Item -Path '{new_exe}' -Destination '{current_exe}' -Force; "
+            f"Remove-Item -Path '{new_exe}' -Force -ErrorAction SilentlyContinue; "
+            f"Start-Process -FilePath '{current_exe}'"
+        )
+        subprocess.Popen(
+            ["powershell", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
         sys.exit(0)
 
     worker.finished.connect(on_finished)

@@ -4,7 +4,7 @@ import subprocess
 import urllib.request
 import json
 
-CURRENT_VERSION = "v1.2.0"
+CURRENT_VERSION = "v1.3.0"
 REPO = "HamzaGTM/personal-invoice"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 SETTINGS_DIR = os.path.expanduser("~/.invoicer")
@@ -40,7 +40,7 @@ def check_and_update(parent_widget=None):
     from PyQt6.QtWidgets import QMessageBox
     msg = QMessageBox(parent_widget)
     msg.setWindowTitle("Update Available")
-    msg.setText(f"A new version is available: {latest_version}\n\nWould you like to update now?")
+    msg.setText(f"Version {latest_version} is available.\n\nWould you like to update now?")
     msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
     msg.setDefaultButton(QMessageBox.StandardButton.Yes)
     if msg.exec() != QMessageBox.StandardButton.Yes:
@@ -50,36 +50,145 @@ def check_and_update(parent_widget=None):
     if not current_exe:
         return
 
+    _show_download_dialog(parent_widget, exe_url, latest_version, release, current_exe)
+
+
+def _show_download_dialog(parent_widget, exe_url, latest_version, release, current_exe):
+    from PyQt6.QtWidgets import (
+        QDialog, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton
+    )
+    from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal
+
+    class Downloader(QObject):
+        progress = pyqtSignal(int)
+        finished = pyqtSignal()
+        error = pyqtSignal(str)
+
+        def __init__(self, url, dest):
+            super().__init__()
+            self.url = url
+            self.dest = dest
+
+        def run(self):
+            try:
+                req = urllib.request.Request(self.url, headers={"User-Agent": "PersonalInvoice"})
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    total = int(r.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    with open(self.dest, "wb") as f:
+                        while True:
+                            chunk = r.read(65536)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total:
+                                self.progress.emit(int(downloaded * 100 / total))
+                self.finished.emit()
+            except Exception as e:
+                self.error.emit(str(e))
+
+    dlg = QDialog(parent_widget)
+    dlg.setWindowTitle("Updating InvoiceR")
+    dlg.setFixedSize(440, 200)
+    dlg.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint)
+    dlg.setStyleSheet("background: #1A1A1A;")
+
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(32, 28, 32, 28)
+    layout.setSpacing(16)
+
+    status_lbl = QLabel(f"Downloading {latest_version}...")
+    status_lbl.setStyleSheet("color: #FFFFFF; font-size: 14px; font-weight: 600; background: transparent;")
+    layout.addWidget(status_lbl)
+
+    bar = QProgressBar()
+    bar.setRange(0, 100)
+    bar.setValue(0)
+    bar.setFixedHeight(22)
+    bar.setStyleSheet("""
+        QProgressBar {
+            background: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            border-radius: 8px;
+            color: white;
+            font-size: 11px;
+            text-align: center;
+        }
+        QProgressBar::chunk {
+            background: #6C63FF;
+            border-radius: 7px;
+        }
+    """)
+    layout.addWidget(bar)
+
+    sub_lbl = QLabel("Please wait while the update is being downloaded.")
+    sub_lbl.setStyleSheet("color: #AAAAAA; font-size: 11px; background: transparent;")
+    layout.addWidget(sub_lbl)
+
+    btn_row = QHBoxLayout()
+    btn_row.addStretch()
+    restart_btn = QPushButton("Restart Now")
+    restart_btn.setVisible(False)
+    restart_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    restart_btn.setFixedHeight(38)
+    restart_btn.setStyleSheet("""
+        QPushButton {
+            background: #6C63FF; color: white; border: none;
+            border-radius: 8px; padding: 0 28px;
+            font-size: 13px; font-weight: bold;
+        }
+        QPushButton:hover { background: #5a52e0; }
+    """)
+    btn_row.addWidget(restart_btn)
+    layout.addLayout(btn_row)
+
     new_exe = current_exe + ".new"
     old_exe = current_exe + ".old"
 
-    try:
-        req = urllib.request.Request(exe_url, headers={"User-Agent": "PersonalInvoice"})
-        with urllib.request.urlopen(req, timeout=60) as r, open(new_exe, "wb") as f:
-            while chunk := r.read(65536):
-                f.write(chunk)
-    except Exception as e:
-        QMessageBox.critical(parent_widget, "Update Failed", f"Could not download update:\n{e}")
-        return
+    thread = QThread()
+    worker = Downloader(exe_url, new_exe)
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+    worker.progress.connect(bar.setValue)
 
-    # Save changelog so it shows on next launch
-    os.makedirs(SETTINGS_DIR, exist_ok=True)
-    notes = release.get("body", "").strip() or "Bug fixes and improvements."
-    with open(CHANGELOG_FILE, "w", encoding="utf-8") as f:
-        json.dump({"version": latest_version, "notes": notes}, f)
+    def on_finished():
+        thread.quit()
+        os.makedirs(SETTINGS_DIR, exist_ok=True)
+        notes = release.get("body", "").strip() or "Bug fixes and improvements."
+        with open(CHANGELOG_FILE, "w", encoding="utf-8") as f:
+            json.dump({"version": latest_version, "notes": notes}, f)
+        status_lbl.setText("Download complete!")
+        status_lbl.setStyleSheet("color: #5CDB95; font-size: 14px; font-weight: 600; background: transparent;")
+        sub_lbl.setText("Click 'Restart Now' to apply the update.")
+        bar.setValue(100)
+        restart_btn.setVisible(True)
 
-    bat = current_exe + "_update.bat"
-    with open(bat, "w") as f:
-        f.write(f"""@echo off
+    def on_error(msg):
+        thread.quit()
+        from PyQt6.QtWidgets import QMessageBox
+        dlg.reject()
+        QMessageBox.critical(parent_widget, "Update Failed", f"Could not download update:\n{msg}")
+
+    def on_restart():
+        bat = current_exe + "_update.bat"
+        with open(bat, "w") as f:
+            f.write(f"""@echo off
 ping -n 3 127.0.0.1 > nul
 move /Y "{current_exe}" "{old_exe}"
 move /Y "{new_exe}" "{current_exe}"
 start "" "{current_exe}"
 del "%~f0"
 """)
+        subprocess.Popen(["cmd", "/c", bat], creationflags=subprocess.CREATE_NO_WINDOW)
+        sys.exit(0)
 
-    subprocess.Popen(["cmd", "/c", bat], creationflags=subprocess.CREATE_NO_WINDOW)
-    sys.exit(0)
+    worker.finished.connect(on_finished)
+    worker.error.connect(on_error)
+    restart_btn.clicked.connect(on_restart)
+
+    thread.start()
+    dlg.exec()
 
 
 def show_pending_changelog(parent_widget=None):
@@ -95,7 +204,7 @@ def show_pending_changelog(parent_widget=None):
     version = data.get("version", "")
     notes = data.get("notes", "")
 
-    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFrame
+    from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QTextEdit
     from PyQt6.QtCore import Qt
 
     dlg = QDialog(parent_widget)

@@ -17,6 +17,7 @@ from PyQt6.QtGui import QFont, QColor, QPainter, QPen
 from editor import InvoiceEditorWidget
 from pdf_gen import build_pdf
 from settings import load_settings, save_settings
+from updater import check_and_update, show_pending_changelog
 
 ACCENT = "#6C63FF"
 BG = "#1A1A1A"
@@ -470,6 +471,9 @@ def main():
 
     window = MainWindow()
     window.show()
+
+    QTimer.singleShot(800, lambda: show_pending_changelog(window))
+    QTimer.singleShot(1500, lambda: check_and_update(window))
 
     sys.exit(app.exec())
 

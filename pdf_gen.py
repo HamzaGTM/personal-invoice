@@ -19,6 +19,7 @@ WHITE = colors.white
 
 def build_pdf(output_path: str, data: dict):
     ACCENT = colors.HexColor(data.get("accent_color", "#6C63FF"))
+    sym = data.get("currency_symbol", "$")
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
@@ -178,8 +179,8 @@ def build_pdf(output_path: str, data: dict):
         table_data.append([
             Paragraph(desc.replace("\n", "<br/>"), cell_style),
             Paragraph(str(qty), cell_style),
-            Paragraph(f"${float(unit):,.2f}", total_cell_style),
-            Paragraph(f"${total:,.2f}", total_cell_style),
+            Paragraph(f"{sym}{float(unit):,.2f}", total_cell_style),
+            Paragraph(f"{sym}{total:,.2f}", total_cell_style),
         ])
 
     items_table = Table(table_data, colWidths=col_widths, repeatRows=1)
@@ -220,7 +221,7 @@ def build_pdf(output_path: str, data: dict):
     )
 
     totals_data = [
-        [Paragraph("Subtotal", totals_label_style), Paragraph(f"${subtotal:,.2f}", totals_style)],
+        [Paragraph("Subtotal", totals_label_style), Paragraph(f"{sym}{subtotal:,.2f}", totals_style)],
     ]
 
     discount_total = 0.0
@@ -232,15 +233,15 @@ def build_pdf(output_path: str, data: dict):
         discount_total += amt
         totals_data.append([
             Paragraph(desc, totals_label_style),
-            Paragraph(f"-${amt:,.2f}", discount_style),
+            Paragraph(f"-{sym}{amt:,.2f}", discount_style),
         ])
 
     after_discount = subtotal - discount_total
     tax_amt = after_discount * tax_pct / 100
     grand_total = after_discount + tax_amt
 
-    totals_data.append([Paragraph(f"Tax ({tax_pct:.1f}%)", totals_label_style), Paragraph(f"${tax_amt:,.2f}", totals_style)])
-    totals_data.append([Paragraph("<b>TOTAL</b>", grand_style), Paragraph(f"<b>${grand_total:,.2f}</b>", grand_style)])
+    totals_data.append([Paragraph(f"Tax ({tax_pct:.1f}%)", totals_label_style), Paragraph(f"{sym}{tax_amt:,.2f}", totals_style)])
+    totals_data.append([Paragraph("<b>TOTAL</b>", grand_style), Paragraph(f"<b>{sym}{grand_total:,.2f}</b>", grand_style)])
     total_row_idx = len(totals_data) - 1
 
     totals_table = Table(

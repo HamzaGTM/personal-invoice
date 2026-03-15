@@ -2,7 +2,8 @@ import os
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTextEdit, QFileDialog, QSlider, QScrollArea,
-    QFrame, QGridLayout, QSizePolicy, QSpacerItem, QCalendarWidget, QDialog
+    QFrame, QGridLayout, QSizePolicy, QSpacerItem, QCalendarWidget, QDialog,
+    QComboBox
 )
 from PyQt6.QtCore import Qt, QSize, QDate, QPoint
 from PyQt6.QtGui import QPixmap, QFont, QDoubleValidator, QIntValidator
@@ -211,9 +212,10 @@ class DatePickerWidget(QWidget):
 
 
 class LineItemRow(QWidget):
-    def __init__(self, parent=None, on_change=None):
+    def __init__(self, parent=None, on_change=None, currency_symbol="$"):
         super().__init__(parent)
         self.on_change = on_change
+        self.currency_symbol = currency_symbol
         self.setStyleSheet("background: transparent;")
 
         layout = QHBoxLayout(self)
@@ -277,9 +279,13 @@ class LineItemRow(QWidget):
             total = float(self.qty.text() or 0) * float(self.unit_price.text() or 0)
         except ValueError:
             total = 0.0
-        self.total_lbl.setText(f"${total:,.2f}")
+        self.total_lbl.setText(f"{self.currency_symbol}{total:,.2f}")
         if self.on_change:
             self.on_change()
+
+    def set_currency(self, symbol):
+        self.currency_symbol = symbol
+        self._recalc()
 
     def get_data(self):
         try:
@@ -295,10 +301,11 @@ class LineItemRow(QWidget):
 
 
 class DiscountRow(QWidget):
-    def __init__(self, parent=None, on_change=None):
+    def __init__(self, parent=None, on_change=None, currency_symbol="$"):
         super().__init__(parent)
         self.on_change = on_change
         self.mode = "pct"
+        self.currency_symbol = currency_symbol
         self.setStyleSheet("background: transparent;")
 
         layout = QHBoxLayout(self)
@@ -384,8 +391,11 @@ class DiscountRow(QWidget):
             val = 0.0
         return self.mode, val
 
+    def set_currency(self, symbol):
+        self.currency_symbol = symbol
+
     def set_display(self, dollar_amount: float):
-        self.discount_lbl.setText(f"-${dollar_amount:,.2f}")
+        self.discount_lbl.setText(f"-{self.currency_symbol}{dollar_amount:,.2f}")
 
     def get_data(self):
         mode, val = self.get_value()
@@ -395,6 +405,20 @@ class DiscountRow(QWidget):
             "value": val,
         }
 
+
+_CURRENCIES = [
+    ("USD – $",  "$"),
+    ("EUR – €",  "€"),
+    ("GBP – £",  "£"),
+    ("PKR – ₨",  "₨"),
+    ("INR – ₹",  "₹"),
+    ("CNY – ¥",  "¥"),
+    ("JPY – ¥",  "¥"),
+    ("AED – د.إ", "د.إ"),
+    ("SAR – ﷼",  "﷼"),
+    ("CAD – CA$", "CA$"),
+    ("AUD – A$",  "A$"),
+]
 
 _INVOICE_COLORS = [
     ("#6C63FF", "Purple"),
@@ -415,6 +439,7 @@ class InvoiceEditorWidget(QWidget):
         self.discount_rows: list[DiscountRow] = []
         self.terms_visible = False
         self.invoice_accent = "#6C63FF"
+        self.currency_symbol = "$"
         self._color_btns = {}
         self._settings = load_settings()
 
@@ -544,6 +569,33 @@ class InvoiceEditorWidget(QWidget):
         self.inv_due = DatePickerWidget()
         self.inv_due.setText(QDate.currentDate().addDays(30).toString("yyyy-MM-dd"))
         meta_layout.addLayout(field_row("Due Date", self.inv_due))
+
+        self.currency_combo = QComboBox()
+        for label, _ in _CURRENCIES:
+            self.currency_combo.addItem(label)
+        self.currency_combo.setStyleSheet(f"""
+            QComboBox {{
+                background: {INPUT_BG};
+                color: {TEXT};
+                border: 1px solid {BORDER};
+                border-radius: 6px;
+                padding: 6px 10px;
+                font-size: 13px;
+            }}
+            QComboBox:focus {{ border: 1px solid {ACCENT}; }}
+            QComboBox::drop-down {{ border: none; width: 24px; }}
+            QComboBox::down-arrow {{ image: none; width: 0; }}
+            QComboBox QAbstractItemView {{
+                background: {CARD};
+                color: {TEXT};
+                border: 1px solid {BORDER};
+                selection-background-color: {ACCENT};
+                selection-color: white;
+                outline: none;
+            }}
+        """)
+        self.currency_combo.currentIndexChanged.connect(self._on_currency_change)
+        meta_layout.addLayout(field_row("Currency", self.currency_combo))
 
         meta_layout.addStretch()
         top_row.addWidget(meta_card, stretch=1)
@@ -852,7 +904,7 @@ class InvoiceEditorWidget(QWidget):
         self._update_logo_preview()
 
     def _add_line_item(self):
-        row = LineItemRow(on_change=self._recalc_totals)
+        row = LineItemRow(on_change=self._recalc_totals, currency_symbol=self.currency_symbol)
         row.remove_btn.clicked.connect(lambda: self._remove_line(row))
         self.line_rows.append(row)
         self.items_container.addWidget(row)
@@ -867,7 +919,7 @@ class InvoiceEditorWidget(QWidget):
         self._recalc_totals()
 
     def _add_discount_row(self):
-        row = DiscountRow(on_change=self._recalc_totals)
+        row = DiscountRow(on_change=self._recalc_totals, currency_symbol=self.currency_symbol)
         row.remove_btn.clicked.connect(lambda: self._remove_discount(row))
         self.discount_rows.append(row)
         self.discounts_container.addWidget(row)
@@ -877,6 +929,14 @@ class InvoiceEditorWidget(QWidget):
         self.discount_rows.remove(row)
         self.discounts_container.removeWidget(row)
         row.deleteLater()
+        self._recalc_totals()
+
+    def _on_currency_change(self, index):
+        self.currency_symbol = _CURRENCIES[index][1]
+        for row in self.line_rows:
+            row.set_currency(self.currency_symbol)
+        for dr in self.discount_rows:
+            dr.set_currency(self.currency_symbol)
         self._recalc_totals()
 
     def _recalc_totals(self):
@@ -889,7 +949,8 @@ class InvoiceEditorWidget(QWidget):
                 subtotal += float(d["qty"]) * float(d["unit_price"])
             except (ValueError, TypeError):
                 pass
-        self.subtotal_lbl.setText(f"${subtotal:,.2f}")
+        sym = self.currency_symbol
+        self.subtotal_lbl.setText(f"{sym}{subtotal:,.2f}")
 
         discount_total = 0.0
         for dr in self.discount_rows:
@@ -900,7 +961,7 @@ class InvoiceEditorWidget(QWidget):
         has_discounts = bool(self.discount_rows)
         self._discounts_row_widget.setVisible(has_discounts)
         if has_discounts:
-            self.discounts_lbl.setText(f"-${discount_total:,.2f}")
+            self.discounts_lbl.setText(f"-{sym}{discount_total:,.2f}")
 
         after_discount = subtotal - discount_total
         try:
@@ -908,8 +969,8 @@ class InvoiceEditorWidget(QWidget):
         except ValueError:
             tax_pct = 0.0
         tax_amt = after_discount * tax_pct / 100
-        self.tax_amount_lbl.setText(f"${tax_amt:,.2f}")
-        self.total_lbl.setText(f"${after_discount + tax_amt:,.2f}")
+        self.tax_amount_lbl.setText(f"{sym}{tax_amt:,.2f}")
+        self.total_lbl.setText(f"{sym}{after_discount + tax_amt:,.2f}")
 
     def _toggle_terms(self):
         self.terms_visible = not self.terms_visible
@@ -949,6 +1010,7 @@ class InvoiceEditorWidget(QWidget):
             "to_name": self.to_name.text().strip(),
             "to_address": self.to_address.text().strip(),
             "to_email": self.to_email.text().strip(),
+            "currency_symbol": self.currency_symbol,
             "line_items": [r.get_data() for r in self.line_rows],
             "discounts": [dr.get_data() for dr in self.discount_rows],
             "tax_percent": self.tax_input.text().strip() or "0",

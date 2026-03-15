@@ -4,7 +4,7 @@ import subprocess
 import urllib.request
 import json
 
-CURRENT_VERSION = "v1.3.0"
+CURRENT_VERSION = "v1.4.0"
 REPO = "HamzaGTM/personal-invoice"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 SETTINGS_DIR = os.path.expanduser("~/.invoicer")
@@ -143,8 +143,8 @@ def _show_download_dialog(parent_widget, exe_url, latest_version, release, curre
     btn_row.addWidget(restart_btn)
     layout.addLayout(btn_row)
 
-    new_exe = current_exe + ".new"
-    old_exe = current_exe + ".old"
+    import tempfile
+    new_exe = os.path.join(tempfile.gettempdir(), "InvoiceR_update.exe")
 
     thread = QThread()
     worker = Downloader(exe_url, new_exe)
@@ -171,11 +171,11 @@ def _show_download_dialog(parent_widget, exe_url, latest_version, release, curre
         QMessageBox.critical(parent_widget, "Update Failed", f"Could not download update:\n{msg}")
 
     def on_restart():
-        bat = current_exe + "_update.bat"
+        import tempfile
+        bat = os.path.join(tempfile.gettempdir(), "InvoiceR_update.bat")
         with open(bat, "w") as f:
             f.write(f"""@echo off
 ping -n 3 127.0.0.1 > nul
-move /Y "{current_exe}" "{old_exe}"
 move /Y "{new_exe}" "{current_exe}"
 start "" "{current_exe}"
 del "%~f0"

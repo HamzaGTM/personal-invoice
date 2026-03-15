@@ -4,7 +4,7 @@ import subprocess
 import urllib.request
 import json
 
-CURRENT_VERSION = "v1.5.0"
+CURRENT_VERSION = "v1.6.0"
 REPO = "HamzaGTM/personal-invoice"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 SETTINGS_DIR = os.path.expanduser("~/.invoicer")
@@ -175,8 +175,9 @@ def _show_download_dialog(parent_widget, exe_url, latest_version, release, curre
         bat = os.path.join(tempfile.gettempdir(), "InvoiceR_update.bat")
         with open(bat, "w") as f:
             f.write(f"""@echo off
-ping -n 3 127.0.0.1 > nul
+ping -n 4 127.0.0.1 > nul
 move /Y "{new_exe}" "{current_exe}"
+powershell -command "Unblock-File '{current_exe}'" > nul 2>&1
 start "" "{current_exe}"
 del "%~f0"
 """)
